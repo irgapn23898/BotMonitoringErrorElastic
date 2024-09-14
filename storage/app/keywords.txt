@@ -1,0 +1,5 @@
+POST /api/user/send-otp HTTP/1.1
+POST /api/config/load HTTP/1.1
+POST /api/user/mobile-authenticate HTTP/1.1
+POST /api/retail/create-recording-meter HTTP/1.1
+client intended to send too large body

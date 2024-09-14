@@ -10,7 +10,7 @@ class TelegramController extends Controller
     public function handleWebhook(Request $request)
     {
         // Ambil token dari file .env
-        $botToken = env('TELEGRAM_BOT_TOKEN'); 
+        $botToken = env('TELEGRAM_BOT_TOKEN');
 
         $update = $request->all();
 
@@ -21,7 +21,21 @@ class TelegramController extends Controller
 
             // Dapatkan URL file dari Telegram API
             $fileUrl = "https://api.telegram.org/bot$botToken/getFile?file_id=$fileId";
-            $fileResponse = json_decode(file_get_contents($fileUrl), true);
+            error_log("Requesting file from URL: $fileUrl");
+
+            $ch = curl_init($fileUrl);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            $response = curl_exec($ch);
+
+            if (curl_errno($ch)) {
+                error_log('Error retrieving file: ' . curl_error($ch));
+                return response()->json(['status' => 'error', 'message' => curl_error($ch)], 500);
+            } else {
+                $fileResponse = json_decode($response, true);
+                error_log('Response from Telegram: ' . print_r($fileResponse, true));
+            }
+
+            curl_close($ch);
 
             if (isset($fileResponse['result']['file_path'])) {
                 $filePath = $fileResponse['result']['file_path'];
@@ -29,6 +43,11 @@ class TelegramController extends Controller
 
                 // Download file CSV dari Telegram
                 $csvFile = file_get_contents($fileDownloadUrl);
+                if ($csvFile === false) {
+                    error_log("Failed to download file from Telegram.");
+                    return response()->json(['status' => 'error', 'message' => 'Failed to download file'], 500);
+                }
+
                 $localFilePath = storage_path('app/uploads/' . basename($filePath));
                 file_put_contents($localFilePath, $csvFile);
 
@@ -50,6 +69,9 @@ class TelegramController extends Controller
                 // Hapus file setelah diproses
                 unlink($localFilePath);
                 unlink($fullResultsFilePath);
+            } else {
+                error_log("File path not found in Telegram response.");
+                return response()->json(['status' => 'error', 'message' => 'File path not found'], 500);
             }
         } else {
             // Jika bukan file, kirim pesan minta upload file
@@ -137,8 +159,6 @@ class TelegramController extends Controller
         
         return $csvFile;
     }
-    
-
 
     private function sendDocument($chatId, $filePath, $botToken)
     {
